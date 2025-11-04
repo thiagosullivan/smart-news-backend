@@ -39,9 +39,9 @@ model CostCenter {
 model AccountReceivable {
   id            String     @id @default(uuid())
   description   String
-  amount        Float
+  amount        Int        // Mude de Float para Int (armazena centavos)
   dueDate       DateTime   // Data de vencimento
-  issueDate     DateTime   @default(now()) // Data de emissão
+  createdAt     DateTime   @default(now()) // Data de emissão
   receivedDate  DateTime?  // Data que foi recebido
   status        AccountStatus @default(PENDING)
   companyId     String
@@ -55,9 +55,9 @@ model AccountReceivable {
 model AccountPayable {
   id           String     @id @default(uuid())
   description  String
-  amount       Float
+  amount       Int        // Mude de Float para Int (armazena centavos)
   dueDate      DateTime   // Data de vencimento
-  issueDate    DateTime   @default(now()) // Data de emissão
+  createdAt    DateTime   @default(now()) // Data de emissão
   paidDate     DateTime?  // Data que foi pago
   status       AccountStatus @default(PENDING)
   companyId    String
