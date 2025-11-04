@@ -1,8 +1,14 @@
-import fastify from "fastify";
+import Fastify from "fastify";
+import { appRoutes } from "./routes";
 
-const app = fastify({
-  //   logger: true,
+const app = Fastify({
+  logger: process.env.NODE_ENV !== "production",
 });
+
+const PORT = parseInt(process.env.PORT || "3333");
+
+// Routes
+app.register(appRoutes);
 
 // Health check
 app.get("/health", async () => {
