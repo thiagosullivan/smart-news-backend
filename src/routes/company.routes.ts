@@ -25,6 +25,8 @@ interface CompanyBody {
   }[];
 }
 
+type AccountStatus = "PENDING" | "PAID" | "OVERDUE" | "CANCELLED";
+
 export async function companyRoutes(app: FastifyInstance) {
   // Get all companies
   app.get("/", async (request: FastifyRequest, reply: FastifyReply) => {
@@ -173,6 +175,180 @@ export async function companyRoutes(app: FastifyInstance) {
         console.error(error);
         reply.code(400);
         return { error: "Erro ao criar empresa" };
+      }
+    }
+  );
+
+  // Edit receivables
+  app.patch(
+    "/:companyId/receivables/:receivableId",
+    async (
+      request: FastifyRequest<{
+        Params: { companyId: string; receivableId: string };
+        Body: {
+          receivedDate?: string;
+          status?: AccountStatus;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { companyId, receivableId } = request.params;
+      const { receivedDate, status } = request.body;
+
+      try {
+        // Verificar se o account receivable existe e pertence à company
+        const receivable = await prisma.accountReceivable.findFirst({
+          where: {
+            id: receivableId,
+            companyId: companyId,
+          },
+        });
+
+        if (!receivable) {
+          reply.code(404);
+          return { error: "Conta a receber não encontrada" };
+        }
+
+        const updateData: any = {};
+
+        if (receivedDate !== undefined) {
+          updateData.receivedDate = receivedDate
+            ? new Date(receivedDate)
+            : null;
+        }
+
+        if (status !== undefined) {
+          updateData.status = status;
+
+          // Se marcar como PAID e não tiver receivedDate, define como agora
+          if (status === "PAID" && !receivedDate) {
+            updateData.receivedDate = new Date();
+          }
+
+          // Se marcar como PENDING e tiver receivedDate, remove o receivedDate
+          if (status === "PENDING" && receivedDate === null) {
+            updateData.receivedDate = null;
+          }
+        }
+
+        const updatedReceivable = await prisma.accountReceivable.update({
+          where: { id: receivableId },
+          data: updateData,
+        });
+
+        return {
+          message: "Conta a receber atualizada com sucesso",
+          receivable: updatedReceivable,
+        };
+      } catch (error) {
+        console.error(error);
+        reply.code(400);
+        return { error: "Erro ao atualizar conta a receber" };
+      }
+    }
+  );
+
+  // Edit payables
+  app.patch(
+    "/:companyId/payables/:payableId",
+    async (
+      request: FastifyRequest<{
+        Params: { companyId: string; payableId: string };
+        Body: {
+          paidDate?: string;
+          status?: AccountStatus;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { companyId, payableId } = request.params;
+      const { paidDate, status } = request.body;
+
+      try {
+        // Verificar se o account payable existe e pertence à company
+        const payable = await prisma.accountPayable.findFirst({
+          where: {
+            id: payableId,
+            companyId: companyId,
+          },
+        });
+
+        if (!payable) {
+          reply.code(404);
+          return { error: "Conta a pagar não encontrada" };
+        }
+
+        const updateData: any = {};
+
+        if (paidDate !== undefined) {
+          updateData.paidDate = paidDate ? new Date(paidDate) : null;
+        }
+
+        if (status !== undefined) {
+          updateData.status = status;
+
+          // Se marcar como PAID e não tiver paidDate, define como agora
+          if (status === "PAID" && !paidDate) {
+            updateData.paidDate = new Date();
+          }
+
+          // Se marcar como PENDING e tiver paidDate, remove o paidDate
+          if (status === "PENDING" && paidDate === null) {
+            updateData.paidDate = null;
+          }
+        }
+
+        const updatedPayable = await prisma.accountPayable.update({
+          where: { id: payableId },
+          data: updateData,
+        });
+
+        return {
+          message: "Conta a pagar atualizada com sucesso",
+          payable: updatedPayable,
+        };
+      } catch (error) {
+        console.error(error);
+        reply.code(400);
+        return { error: "Erro ao atualizar conta a pagar" };
+      }
+    }
+  );
+
+  // Delete company
+  app.delete(
+    "/:id",
+    async (
+      request: FastifyRequest<{ Params: { id: string } }>,
+      reply: FastifyReply
+    ) => {
+      const { id } = request.params;
+
+      try {
+        // Verificar se a company existe
+        const company = await prisma.company.findUnique({
+          where: { id },
+        });
+
+        if (!company) {
+          reply.code(404);
+          return { error: "Empresa não encontrada" };
+        }
+
+        // Deletar a company (os relacionamentos serão deletados em cascade)
+        const deletedCompany = await prisma.company.delete({
+          where: { id },
+        });
+
+        return {
+          message:
+            "Empresa e todos os registros relacionados deletados com sucesso",
+          company: deletedCompany,
+        };
+      } catch (error) {
+        console.error(error);
+        reply.code(400);
+        return { error: "Erro ao deletar empresa" };
       }
     }
   );
