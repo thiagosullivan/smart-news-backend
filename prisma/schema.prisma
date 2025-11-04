@@ -1,0 +1,77 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  
+  // Relations
+  accountsReceivable AccountReceivable[]
+  accountsPayable    AccountPayable[]
+  costCenters        CostCenter[]
+}
+
+model CostCenter {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  // Relations
+  accountsReceivable AccountReceivable[]
+  accountsPayable    AccountPayable[]
+}
+
+model AccountReceivable {
+  id            String     @id @default(uuid())
+  description   String
+  amount        Float
+  dueDate       DateTime   // Data de vencimento
+  issueDate     DateTime   @default(now()) // Data de emissão
+  receivedDate  DateTime?  // Data que foi recebido
+  status        AccountStatus @default(PENDING)
+  companyId     String
+  costCenterId  String?
+  
+  // Relations
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  costCenter CostCenter? @relation(fields: [costCenterId], references: [id])
+}
+
+model AccountPayable {
+  id           String     @id @default(uuid())
+  description  String
+  amount       Float
+  dueDate      DateTime   // Data de vencimento
+  issueDate    DateTime   @default(now()) // Data de emissão
+  paidDate     DateTime?  // Data que foi pago
+  status       AccountStatus @default(PENDING)
+  companyId    String
+  costCenterId String?
+  
+  // Relations
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  costCenter CostCenter? @relation(fields: [costCenterId], references: [id])
+}
+
+enum AccountStatus {
+  PENDING    // A vencer
+  PAID       // Pago/Recebido
+  OVERDUE    // Vencido
+  CANCELLED  // Cancelado
+}

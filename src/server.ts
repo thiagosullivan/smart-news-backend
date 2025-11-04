@@ -1,11 +1,15 @@
 import Fastify from "fastify";
 import { appRoutes } from "./routes";
+import prisma from "./lib/prisma";
+import prismaPlugin from "./plugins/prisma";
 
 const app = Fastify({
   logger: process.env.NODE_ENV !== "production",
 });
 
 const PORT = parseInt(process.env.PORT || "3333");
+
+app.register(prismaPlugin);
 
 // Routes
 app.register(appRoutes);
