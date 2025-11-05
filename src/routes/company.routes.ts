@@ -240,6 +240,132 @@ export async function companyRoutes(app: FastifyInstance) {
     }
   );
 
+  // Add receivable to existing company
+  app.post(
+    "/:companyId/receivables",
+    async (
+      request: FastifyRequest<{
+        Params: { companyId: string };
+        Body: {
+          description: string;
+          amount: string;
+          dueDate: string;
+          status?: AccountStatus;
+          receivedDate?: string;
+          costCenterId?: string;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { companyId } = request.params;
+      const {
+        description,
+        amount,
+        dueDate,
+        status,
+        receivedDate,
+        costCenterId,
+      } = request.body;
+
+      try {
+        // Verificar se a company existe
+        const company = await prisma.company.findUnique({
+          where: { id: companyId },
+          include: { costCenters: true },
+        });
+
+        if (!company) {
+          reply.code(404);
+          return { error: "Empresa não encontrada" };
+        }
+
+        // Usar o primeiro cost center se não especificado
+        const targetCostCenterId = costCenterId || company.costCenters[0]?.id;
+
+        const receivable = await prisma.accountReceivable.create({
+          data: {
+            description,
+            amount: Math.round(parseFloat(amount) * 100),
+            dueDate: new Date(dueDate),
+            status: status || "PENDING",
+            receivedDate: receivedDate ? new Date(receivedDate) : null,
+            companyId: companyId,
+            costCenterId: targetCostCenterId,
+          },
+        });
+
+        return {
+          message: "Conta a receber adicionada com sucesso",
+          receivable,
+        };
+      } catch (error) {
+        console.error(error);
+        reply.code(400);
+        return { error: "Erro ao adicionar conta a receber" };
+      }
+    }
+  );
+
+  // Add payable to existing company
+  app.post(
+    "/:companyId/payables",
+    async (
+      request: FastifyRequest<{
+        Params: { companyId: string };
+        Body: {
+          description: string;
+          amount: string;
+          dueDate: string;
+          status?: AccountStatus;
+          paidDate?: string;
+          costCenterId?: string;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { companyId } = request.params;
+      const { description, amount, dueDate, status, paidDate, costCenterId } =
+        request.body;
+
+      try {
+        // Verificar se a company existe
+        const company = await prisma.company.findUnique({
+          where: { id: companyId },
+          include: { costCenters: true },
+        });
+
+        if (!company) {
+          reply.code(404);
+          return { error: "Empresa não encontrada" };
+        }
+
+        // Usar o primeiro cost center se não especificado
+        const targetCostCenterId = costCenterId || company.costCenters[0]?.id;
+
+        const payable = await prisma.accountPayable.create({
+          data: {
+            description,
+            amount: Math.round(parseFloat(amount) * 100),
+            dueDate: new Date(dueDate),
+            status: status || "PENDING",
+            paidDate: paidDate ? new Date(paidDate) : null,
+            companyId: companyId,
+            costCenterId: targetCostCenterId,
+          },
+        });
+
+        return {
+          message: "Conta a pagar adicionada com sucesso",
+          payable,
+        };
+      } catch (error) {
+        console.error(error);
+        reply.code(400);
+        return { error: "Erro ao adicionar conta a pagar" };
+      }
+    }
+  );
+
   // Edit receivables
   app.patch(
     "/:companyId/receivables/:receivableId",
@@ -247,7 +373,7 @@ export async function companyRoutes(app: FastifyInstance) {
       request: FastifyRequest<{
         Params: { companyId: string; receivableId: string };
         Body: {
-          receivedDate?: string;
+          receivedDate?: string; // ✅ CORRETO
           status?: AccountStatus;
         };
       }>,
@@ -410,6 +536,85 @@ export async function companyRoutes(app: FastifyInstance) {
         console.error(error);
         reply.code(400);
         return { error: "Erro ao deletar empresa" };
+      }
+    }
+  );
+
+  // Delete payable
+  app.delete(
+    "/:companyId/payables/:payableId",
+    async (
+      request: FastifyRequest<{
+        Params: { companyId: string; payableId: string };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { companyId, payableId } = request.params;
+
+      try {
+        const payable = await prisma.accountPayable.findFirst({
+          where: {
+            id: payableId,
+            companyId: companyId,
+          },
+        });
+
+        if (!payable) {
+          reply.code(404);
+          return { error: "Conta a pagar não encontrada" };
+        }
+
+        const deletedPayable = await prisma.accountPayable.delete({
+          where: { id: payableId },
+        });
+
+        return {
+          message: "Conta a pagar deletada com sucesso",
+          payable: deletedPayable,
+        };
+      } catch (error) {
+        console.error(error);
+        reply.code(400);
+        return { error: "Erro ao deletar conta a pagar" };
+      }
+    }
+  );
+  // Delete receivable
+  app.delete(
+    "/:companyId/receivables/:receivableId",
+    async (
+      request: FastifyRequest<{
+        Params: { companyId: string; receivableId: string };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { companyId, receivableId } = request.params;
+
+      try {
+        const receivable = await prisma.accountReceivable.findFirst({
+          where: {
+            id: receivableId,
+            companyId: companyId,
+          },
+        });
+
+        if (!receivable) {
+          reply.code(404);
+          return { error: "Conta a receber não encontrada" }; // ✅ CORRIGIDO
+        }
+
+        const deletedReceivable = await prisma.accountReceivable.delete({
+          where: { id: receivableId },
+        });
+
+        return {
+          message: "Conta a receber deletada com sucesso",
+          receivable: deletedReceivable,
+        };
+      } catch (error) {
+        console.error(error);
+        reply.code(400);
+        return { error: "Erro ao deletar conta a receber" };
       }
     }
   );
