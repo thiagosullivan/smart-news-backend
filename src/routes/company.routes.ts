@@ -16,12 +16,14 @@ interface CompanyBody {
     amount: string;
     dueDate: string;
     createdAt?: string;
+    status: string | undefined;
   }[];
   accountsPayable: {
     description: string;
     amount: string;
     dueDate: string;
     createdAt?: string;
+    status: string | undefined;
   }[];
 }
 
@@ -44,6 +46,65 @@ export async function companyRoutes(app: FastifyInstance) {
       return { error: "Not found" };
     }
   });
+
+  // Get companies for select with pagination
+  app.get(
+    "/select",
+    async (
+      request: FastifyRequest<{
+        Querystring: {
+          page?: string;
+          limit?: string;
+          search?: string;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        const page = parseInt(request.query.page || "1") || 1;
+        const limit = parseInt(request.query.limit || "10") || 10; // 10 por página para o select
+        const search = request.query.search || "";
+        const skip = (page - 1) * limit;
+
+        const where = search
+          ? {
+              name: {
+                contains: search,
+                mode: "insensitive" as const,
+              },
+            }
+          : {};
+
+        const [companies, totalCount] = await Promise.all([
+          prisma.company.findMany({
+            where,
+            select: {
+              // Apenas os campos necessários para o select
+              id: true,
+              name: true,
+            },
+            orderBy: { name: "asc" },
+            skip,
+            take: limit,
+          }),
+          prisma.company.count({ where }),
+        ]);
+
+        const hasMore = skip + companies.length < totalCount;
+
+        return {
+          companies,
+          total: totalCount,
+          hasMore,
+          nextPage: hasMore ? page + 1 : null,
+        };
+      } catch (error) {
+        console.error("Error fetching companies for select:", error);
+        reply.code(500);
+        return { error: "Internal server error" };
+      }
+    }
+  );
 
   // Get company by id
   app.get(
@@ -111,7 +172,7 @@ export async function companyRoutes(app: FastifyInstance) {
             )
           );
 
-          // 3. Criar Accounts Receivable
+          // 3. Criar Accounts Receivable - CORREÇÃO: usar dados do JSON
           if (accountsReceivable.length > 0) {
             await Promise.all(
               accountsReceivable.map((ar) =>
@@ -120,18 +181,19 @@ export async function companyRoutes(app: FastifyInstance) {
                     description: ar.description,
                     amount: Math.round(parseFloat(ar.amount) * 100),
                     dueDate: new Date(ar.dueDate),
-                    status: "PENDING",
+                    status: ar.status || "PENDING", // CORREÇÃO: usar status do JSON
+                    receivedDate: ar.receivedDate
+                      ? new Date(ar.receivedDate)
+                      : null, // CORREÇÃO
                     companyId: company.id,
                     costCenterId: createdCostCenters[0]?.id || null,
-                    // createdAt é automático (@default(now()))
-                    // receivedDate é opcional e começa como null
                   },
                 })
               )
             );
           }
 
-          // 4. Criar Accounts Payable
+          // 4. Criar Accounts Payable - CORREÇÃO: usar dados do JSON
           if (accountsPayable.length > 0) {
             await Promise.all(
               accountsPayable.map((ap) =>
@@ -140,11 +202,10 @@ export async function companyRoutes(app: FastifyInstance) {
                     description: ap.description,
                     amount: Math.round(parseFloat(ap.amount) * 100),
                     dueDate: new Date(ap.dueDate),
-                    status: "PENDING",
+                    status: ap.status || "PENDING", // CORREÇÃO: usar status do JSON
+                    paidDate: ap.paidDate ? new Date(ap.paidDate) : null, // CORREÇÃO
                     companyId: company.id,
                     costCenterId: createdCostCenters[0]?.id || null,
-                    // createdAt é automático (@default(now()))
-                    // paidDate é opcional e começa como null
                   },
                 })
               )
