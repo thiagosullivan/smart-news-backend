@@ -12,9 +12,9 @@ const PORT = parseInt(process.env.PORT || "3333");
 
 // CORS
 app.register(cors, {
-  origin: true,
-  // origin: ["http://localhost:5173", "https://meusite.com"],
-
+  origin: process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(",")
+    : ["http://localhost:5173"],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "Accept"],
   credentials: true,
@@ -34,10 +34,10 @@ app.get("/health", async () => {
 const start = async () => {
   try {
     await app.listen({
-      port: 3333,
+      port: PORT,
       host: "0.0.0.0",
     });
-    console.log("🚀 Server running on http://localhost:3333");
+    console.log(`🚀 Server running on port ${PORT}`);
   } catch (err) {
     app.log.error(err);
     process.exit(1);
