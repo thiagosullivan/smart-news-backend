@@ -153,80 +153,86 @@ export async function companyRoutes(app: FastifyInstance) {
       } = request.body;
 
       try {
-        const result = await prisma.$transaction(async (tx) => {
-          // 1. Criar a Company primeiro
-          const company = await tx.company.create({
-            data: { name },
-          });
+        const result = await prisma.$transaction(
+          async (tx) => {
+            // 1. Criar a Company primeiro
+            const company = await tx.company.create({
+              data: { name },
+            });
 
-          // 2. Criar Cost Centers
-          const createdCostCenters = await Promise.all(
-            costCenters.map((cc) =>
-              tx.costCenter.create({
-                data: {
-                  name: cc.name,
-                  description: cc.description || null,
-                  companyId: company.id,
-                },
-              })
-            )
-          );
-
-          // 3. Criar Accounts Receivable - CORREÇÃO: usar dados do JSON
-          if (accountsReceivable.length > 0) {
-            await Promise.all(
-              accountsReceivable.map((ar) =>
-                tx.accountReceivable.create({
+            // 2. Criar Cost Centers
+            const createdCostCenters = await Promise.all(
+              costCenters.map((cc) =>
+                tx.costCenter.create({
                   data: {
-                    description: ar.description,
-                    amount: Math.round(parseFloat(ar.amount) * 100),
-                    dueDate: new Date(ar.dueDate),
-                    status: ar.status || "PENDING", // CORREÇÃO: usar status do JSON
-                    receivedDate: ar.receivedDate
-                      ? new Date(ar.receivedDate)
-                      : null, // CORREÇÃO
+                    name: cc.name,
+                    description: cc.description || null,
                     companyId: company.id,
-                    costCenterId: createdCostCenters[0]?.id || null,
                   },
                 })
               )
             );
-          }
 
-          // 4. Criar Accounts Payable - CORREÇÃO: usar dados do JSON
-          if (accountsPayable.length > 0) {
-            await Promise.all(
-              accountsPayable.map((ap) =>
-                tx.accountPayable.create({
-                  data: {
-                    description: ap.description,
-                    amount: Math.round(parseFloat(ap.amount) * 100),
-                    dueDate: new Date(ap.dueDate),
-                    status: ap.status || "PENDING", // CORREÇÃO: usar status do JSON
-                    paidDate: ap.paidDate ? new Date(ap.paidDate) : null, // CORREÇÃO
-                    companyId: company.id,
-                    costCenterId: createdCostCenters[0]?.id || null,
+            // 3. Criar Accounts Receivable - CORREÇÃO: usar dados do JSON
+            if (accountsReceivable.length > 0) {
+              await Promise.all(
+                accountsReceivable.map((ar) =>
+                  tx.accountReceivable.create({
+                    data: {
+                      description: ar.description,
+                      amount: Math.round(parseFloat(ar.amount) * 100),
+                      dueDate: new Date(ar.dueDate),
+                      status: ar.status || "PENDING",
+                      receivedDate: ar.receivedDate
+                        ? new Date(ar.receivedDate)
+                        : null, // CORREÇÃO
+                      companyId: company.id,
+                      costCenterId: createdCostCenters[0]?.id || null,
+                    },
+                  })
+                )
+              );
+            }
+
+            // 4. Criar Accounts Payable - CORREÇÃO: usar dados do JSON
+            if (accountsPayable.length > 0) {
+              await Promise.all(
+                accountsPayable.map((ap) =>
+                  tx.accountPayable.create({
+                    data: {
+                      description: ap.description,
+                      amount: Math.round(parseFloat(ap.amount) * 100),
+                      dueDate: new Date(ap.dueDate),
+                      status: ap.status || "PENDING", // CORREÇÃO: usar status do JSON
+                      paidDate: ap.paidDate ? new Date(ap.paidDate) : null, // CORREÇÃO
+                      companyId: company.id,
+                      costCenterId: createdCostCenters[0]?.id || null,
+                    },
+                  })
+                )
+              );
+            }
+
+            // 5. Retornar a company com todos os relacionamentos
+            return await tx.company.findUnique({
+              where: { id: company.id },
+              include: {
+                costCenters: {
+                  include: {
+                    accountsReceivable: true,
+                    accountsPayable: true,
                   },
-                })
-              )
-            );
-          }
-
-          // 5. Retornar a company com todos os relacionamentos
-          return await tx.company.findUnique({
-            where: { id: company.id },
-            include: {
-              costCenters: {
-                include: {
-                  accountsReceivable: true,
-                  accountsPayable: true,
                 },
+                accountsReceivable: true,
+                accountsPayable: true,
               },
-              accountsReceivable: true,
-              accountsPayable: true,
-            },
-          });
-        });
+            });
+          },
+          {
+            timeout: 30000,
+            maxWait: 10000,
+          }
+        );
 
         return {
           message: "Empresa criada com sucesso",
