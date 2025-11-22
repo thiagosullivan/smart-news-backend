@@ -3,12 +3,15 @@ import cors from "@fastify/cors";
 import { appRoutes } from "./routes";
 import prisma from "./lib/prisma";
 import prismaPlugin from "./plugins/prisma";
+import job from "./services/cron";
 
 const app = Fastify({
   logger: process.env.NODE_ENV !== "production",
 });
 
 const PORT = parseInt(process.env.PORT || "3333");
+
+if (process.env.NODE_ENV === "production") job.start();
 
 // CORS
 app.register(cors, {
